@@ -1,0 +1,69 @@
+[tool.poetry]
+name = "gencdr"
+version = "0.2.0"
+description = "Framework-conditioned autoregressive generation and log-likelihood scoring of antibody CDRs (IgGenCDR, NanoGenCDR, p-IgGenCDR)."
+authors = ["AstraZeneca"]
+license = "Apache-2.0"
+readme = "README.md"
+homepage = "https://github.com/AstraZeneca/GenCDR"
+repository = "https://github.com/AstraZeneca/GenCDR"
+keywords = ["antibody", "nanobody", "CDR", "generative-model", "protein-language-model"]
+packages = [{ include = "gencdr", from = "src" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.12"
+# Core runtime: enough to load a checkpoint and generate/score CDRs.
+torch = ">=2.2"
+transformers = "^4.53"
+numpy = "<2.0.0"
+pandas = "^2.2.2"
+tqdm = "^4.67"
+typer = "^0.12.5"
+
+# Optional: FR/CDR segmentation (abnumber) and correlation plots (matplotlib).
+# Needed only for `gencdr score` on raw sequences and the segmentation helper.
+abnumber = { git = "https://github.com/prihoda/AbNumber.git", rev = "e5d8e2bf89b8ae28b9f435f3061f3ad3bdd102fb", optional = true }
+matplotlib = { version = "^3.8.0", optional = true }
+
+# Optional: weighted DPO alignment training loop (`gencdr align`).
+pytorch-lightning = { version = "^2.2", optional = true }
+torchmetrics = { version = "^1.3", optional = true }
+
+[tool.poetry.extras]
+scoring = ["abnumber", "matplotlib"]
+align = ["pytorch-lightning", "torchmetrics"]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2"
+ruff = "^0.5"
+black = "^24.4"
+pre-commit = "*"
+
+[tool.poetry.scripts]
+gencdr = "gencdr.cli.main:run"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.black]
+line-length = 120
+target-version = ["py310", "py311"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+# __init__.py re-exports names without using them; setup files are generated.
+extend-exclude = ["__init__.py"]
+
+[tool.ruff.lint]
+# pydocstyle (D), pycodestyle (E/W), Pyflakes (F), isort (I001) — matches the
+# conventions the lifted modules were written to.
+select = ["D", "E", "F", "W", "I001"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"

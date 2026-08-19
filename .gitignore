@@ -1,0 +1,46 @@
+# Byte-compiled / optimized / cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Poetry / virtualenvs
+.venv/
+venv/
+env/
+poetry.lock
+
+# Model weights and local caches (never commit weights)
+*.safetensors
+*.bin
+*.ckpt
+*.pt
+*.pth
+.cache/
+
+# Coverage / test artifacts
+.coverage
+coverage.xml
+htmlcov/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# Example / run outputs
+*.csv
+!examples/**/*.csv
+*.png
+!docs/**/*.png
