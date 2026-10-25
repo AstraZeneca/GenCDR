@@ -97,7 +97,7 @@ pip install "gencdr[scoring]@git+https://github.com/AstraZeneca/GenCDR.git"
 pip install "gencdr[align]@git+https://github.com/AstraZeneca/GenCDR.git"
 ```
 
-> Model weights are not included in this repository. Release details will be added under
+> Model weights download automatically the first time you use a model name. See
 > [Obtaining model weights](#obtaining-model-weights).
 
 ## Usage
@@ -217,7 +217,11 @@ objective and generalizes the single-chain method.
 
 ## Obtaining model weights
 
-Model weights and download instructions will be added here when they are released.
+The [v1.0.0 release](https://github.com/AstraZeneca/GenCDR/releases/tag/v1.0.0) provides
+IgGenCDR, NanoGenCDR, and p-IgGenCDR weights under Apache-2.0. Use `iggencdr`,
+`nanogencdr`, or `p-iggencdr` as the model name in Python or the CLI. GenCDR downloads
+weights on first use and caches them in `~/.cache/gencdr/`; set `GENCDR_HOME` to change
+the location. You can also pass a local model directory.
 
 ## License
 

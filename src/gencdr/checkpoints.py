@@ -1,24 +1,15 @@
-"""Local checkpoint resolution for GenCDR models.
+"""Resolve local GenCDR checkpoints and download published models on demand."""
 
-Weights are NOT shipped with this package. Resolution rules for
-``resolve_checkpoint(name_or_path)``:
-
-1. If ``name_or_path`` is an existing directory containing a model, use it directly.
-2. Otherwise treat it as a short model name and look it up under the local cache root
-   (``$GENCDR_HOME``, default ``~/.cache/gencdr``), i.e. ``$GENCDR_HOME/<name>``.
-
-A model directory is expected to hold the HuggingFace files produced at export time:
-``config.json``, the weights (``model.safetensors`` or ``pytorch_model.bin``),
-``tokenizer.json`` and ``tokenizer_config.json`` / ``special_tokens_map.json``.
-
-HuggingFace Hub download is not yet wired up (see ``download_from_hub``); once model
-weights are published, resolution can fall back to a Hub snapshot without any change to
-callers, since loading already goes through ``from_pretrained``.
-"""
-
+import hashlib
 import os
+import tempfile
+import zipfile
 from pathlib import Path
 from typing import Dict, Iterable
+from urllib.request import urlopen
+
+RELEASE_TAG = "v1.0.0"
+RELEASE_URL = f"https://github.com/AstraZeneca/GenCDR/releases/download/{RELEASE_TAG}"
 
 # Canonical short names -> subdirectory under the cache root. Aliases map to the same dir.
 MODEL_ALIASES: Dict[str, str] = {
@@ -30,7 +21,20 @@ MODEL_ALIASES: Dict[str, str] = {
     "paired": "p-iggencdr",
 }
 
-# Files that indicate a directory holds model weights (any one is sufficient).
+_MODEL_SHA256: Dict[str, str] = {
+    "iggencdr": "9f7fd9bb2e056881a61f978adf815a4028ab99f9c8e746db736e6b178a9a1f29",
+    "p-iggencdr": "4b21fb04dc610990f384267b21342df4740dea5afc89180097168890d4feb944",
+    "nanogencdr": "3c4c2f9640841edc639449c5cbc5fad78e6d1315dd4af50099f58a41704c2cdc",
+}
+
+_ARCHIVE_FILES = {
+    "config.json",
+    "generation_config.json",
+    "model.safetensors",
+    "special_tokens_map.json",
+    "tokenizer.json",
+    "tokenizer_config.json",
+}
 _WEIGHT_FILES: Iterable[str] = ("model.safetensors", "pytorch_model.bin")
 _CONFIG_FILE = "config.json"
 
@@ -52,14 +56,61 @@ def _looks_like_model_dir(path: Path) -> bool:
     return any((path / w).is_file() for w in _WEIGHT_FILES)
 
 
+def _download_model(model_name: str, destination: Path) -> Path:
+    """Download and verify one published model archive, then atomically populate its cache."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        raise FileExistsError(
+            f"Cannot download model into '{destination}': that cache path already exists but is not a valid model. "
+            "Move or remove the incomplete directory, then retry."
+        )
+
+    url = f"{RELEASE_URL}/{model_name}.zip"
+    archive_path: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            dir=destination.parent, prefix=f".{model_name}-", suffix=".zip", delete=False
+        ) as f:
+            archive_path = Path(f.name)
+            digest = hashlib.sha256()
+            with urlopen(url, timeout=60) as response:
+                while chunk := response.read(1024 * 1024):
+                    f.write(chunk)
+                    digest.update(chunk)
+
+        if digest.hexdigest() != _MODEL_SHA256[model_name]:
+            raise ValueError(f"SHA-256 verification failed for downloaded model '{model_name}'.")
+
+        with tempfile.TemporaryDirectory(dir=destination.parent, prefix=f".{model_name}-") as temp_dir:
+            staging_dir = Path(temp_dir) / "model"
+            staging_dir.mkdir()
+            with zipfile.ZipFile(archive_path) as archive:
+                infos = archive.infolist()
+                names = [info.filename for info in infos]
+                if len(names) != len(set(names)) or set(names) != _ARCHIVE_FILES:
+                    raise ValueError(f"Downloaded archive for '{model_name}' has an unexpected file layout.")
+                for info in infos:
+                    if info.is_dir() or info.flag_bits & 0x1:
+                        raise ValueError(f"Downloaded archive for '{model_name}' contains an unsupported entry.")
+                archive.extractall(staging_dir)
+            if not _looks_like_model_dir(staging_dir):
+                raise ValueError(f"Downloaded archive for '{model_name}' is missing required model files.")
+            os.replace(staging_dir, destination)
+    finally:
+        if archive_path is not None:
+            archive_path.unlink(missing_ok=True)
+
+    return destination
+
+
 def resolve_checkpoint(name_or_path: str) -> Path:
-    """Resolve a directory path or short model name to a local model directory.
+    """Resolve a local model directory or short model name, downloading known models if needed.
 
     Parameters
     ----------
     name_or_path : str
-        Either a filesystem path to a model directory, or a short model name
-        (see MODEL_ALIASES) resolved under the cache root.
+        Either a filesystem path to a model directory, or a short model name (see
+        ``MODEL_ALIASES``) resolved under the cache root.
 
     Returns
     -------
@@ -69,7 +120,7 @@ def resolve_checkpoint(name_or_path: str) -> Path:
     Raises
     ------
     FileNotFoundError
-        If no matching local model directory can be found.
+        If a local model directory or published model cannot be resolved.
     """
     candidate = Path(name_or_path).expanduser()
     if candidate.is_dir():
@@ -85,6 +136,8 @@ def resolve_checkpoint(name_or_path: str) -> Path:
     resolved = cache_root() / subdir
     if _looks_like_model_dir(resolved):
         return resolved
+    if subdir in _MODEL_SHA256:
+        return _download_model(subdir, resolved)
 
     known = ", ".join(sorted(set(MODEL_ALIASES.values())))
     raise FileNotFoundError(
@@ -92,18 +145,4 @@ def resolve_checkpoint(name_or_path: str) -> Path:
         f"'{resolved}'. Place the model files there, or pass an explicit directory path. "
         f"Set $GENCDR_HOME to change the cache root (currently '{cache_root()}'). "
         f"Known model names: {known}."
-    )
-
-
-def download_from_hub(name_or_path: str, revision: str = "main") -> Path:
-    """Download a checkpoint from the HuggingFace Hub (not yet implemented).
-
-    When GenCDR weights are published to the Hub, this will call
-    ``huggingface_hub.snapshot_download`` and return the local snapshot path, so that
-    ``resolve_checkpoint`` can transparently fall back to it. Loading itself already goes
-    through ``from_pretrained``, so no changes are needed at the call sites.
-    """
-    raise NotImplementedError(
-        "HuggingFace Hub download is not yet available for GenCDR models. "
-        "Provide a local model directory or set $GENCDR_HOME. See gencdr.checkpoints."
     )

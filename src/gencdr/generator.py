@@ -414,8 +414,8 @@ class GenCDRGenerator:
         """Load a generator from a local directory or a named checkpoint.
 
         `name_or_path` may be an existing directory, or a short name (e.g. "iggencdr",
-        "nanogencdr", "p-iggencdr") resolved against the local checkpoint cache. See
-        gencdr.checkpoints.resolve_checkpoint for resolution rules.
+        "nanogencdr", "p-iggencdr"). Named checkpoints are downloaded on first use and
+        cached locally. See gencdr.checkpoints.resolve_checkpoint for resolution rules.
         """
         model_dir = resolve_checkpoint(name_or_path)
         return cls(model_dir=str(model_dir), device=device, fp=fp, include_scheme_token=include_scheme_token)

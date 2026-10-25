@@ -107,7 +107,7 @@ class WeightedDPOAligner:
         Parameters
         ----------
         model : str
-            Policy checkpoint: a directory or a short name (see gencdr.checkpoints).
+            Policy checkpoint: a directory or a model name (downloaded on first use).
         output_dir : str
             Directory for the aligned model, tokenizer, checkpoints and logs.
         ref_model : str, optional

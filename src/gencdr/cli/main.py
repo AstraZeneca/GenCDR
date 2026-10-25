@@ -6,8 +6,8 @@ Subcommands:
   - score            region log-likelihood scoring of sequences in a CSV
   - align            weighted DPO alignment from reward CSV(s) (requires the 'align' extra)
 
-`--model` accepts either a local model directory or a short name resolved against the
-local checkpoint cache (see gencdr.checkpoints).
+`--model` accepts a local model directory or a model name. Named models download on first
+use and are cached locally (see gencdr.checkpoints).
 """
 
 from pathlib import Path
@@ -32,7 +32,7 @@ def _resolve_model(model: str) -> str:
 
 @app.command()
 def generate(
-    model: str = typer.Option(..., "--model", "-m", help="Model directory or name (iggencdr/nanogencdr)."),
+    model: str = typer.Option(..., "--model", "-m", help="Model directory or name (downloads on first use)."),
     out_csv: Path = typer.Option(..., "--out-csv", "-o", help="Output CSV path."),
     chain_type: str = typer.Option("H", "--chain-type", help="Chain type: 'H' or 'L'."),
     n_samples: int = typer.Option(10, "--n-samples", "-n", help="Samples per framework set."),
@@ -83,7 +83,7 @@ def generate(
 
 @app.command("generate-paired")
 def generate_paired_cmd(
-    model: str = typer.Option(..., "--model", "-m", help="Model directory or name (p-iggencdr)."),
+    model: str = typer.Option(..., "--model", "-m", help="Model directory or name (downloads on first use)."),
     out_csv: Path = typer.Option(..., "--out-csv", "-o", help="Output CSV path."),
     n_samples: int = typer.Option(10, "--n-samples", "-n", help="Samples per framework set."),
     frameworks_json: Optional[Path] = typer.Option(

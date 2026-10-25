@@ -25,6 +25,8 @@ poetry.lock
 *.pt
 *.pth
 .cache/
+/gencdr-release.tar.gz
+/gencdr-release/
 
 # Coverage / test artifacts
 .coverage
